@@ -456,9 +456,6 @@ export async function processBuild(build: AppBuild) {
   logProgress(`🛠️  Build modded app`);
 
   await $`bun install`.cwd(buildModdedDir);
-
-  // await $`bunx electron .`.cwd(buildModdedDir);
-
   await $`bunx electron-builder`.cwd(buildModdedDir);
 
   logProgress(`✔️   Done`);

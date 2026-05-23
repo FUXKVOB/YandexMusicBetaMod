@@ -7,6 +7,7 @@ import { ScrollArea } from "@ui/components/ui/scroll-area";
 import { Suspense, lazy, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Toaster } from "@ui/components/ui/sonner";
+import { ErrorBoundary } from "@ui/components/ui/error-boundary";
 
 import { Button } from "./components/ui/button";
 
@@ -201,6 +202,7 @@ export default function App() {
             className="flex h-full flex-col p-1 pt-0 overflow-hidden overflow-x-auto overflow-y-auto rounded-md"
             viewportClassName="gap-2"
           >
+            <ErrorBoundary>
             {appMetaQuery.isSuccess &&
               appMetaQuery.data &&
               appMetaQuery.data.modStable !== import.meta.env.VITE_MOD_VERSION && (
@@ -276,6 +278,7 @@ export default function App() {
                 </div>
               </div>
             </div>
+          </ErrorBoundary>
           </ScrollArea>
 
           <div className="m-4 flex flex-row">
