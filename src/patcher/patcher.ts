@@ -8,6 +8,7 @@ import { $ } from "bun";
 
 import { downloadBuild } from "./api";
 import type { AppBuild } from "~/types/AppBuild";
+import { AstPatcher } from "./babel-patch";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -208,144 +209,155 @@ export async function processBuild(build: AppBuild) {
       enableSystemToolbar = JSON.parse(yandexMusicMod_fs.readFileSync(yandexMusicMod_settingsFilePath, "utf8"))["devtools/systemToolbar"];
     } catch (e) {}\n\n` + indexJsContents;
 
-  if (/constructor\(\)\s+{\s+this\.logger = new Logger\("UpdateLogger"\)/g.test(indexJsContents)) {
-    indexJsContents = indexJsContents.replace(
-      /constructor\(\)\s+{\s+this\.logger = new Logger\("UpdateLogger"\)/g,
-      "constructor() { return \n",
-    );
-  } else {
-    logProgress(`❌ Updater class is not found in index.js`);
-    return;
+  const astPatcher = new AstPatcher();
+
+  astPatcher.register({
+    name: "disable-updater",
+    find: () => /constructor\(\)\s*\{\s*this\.logger\s*=\s*new\s*Logger\("UpdateLogger"\)/g.test(indexJsContents),
+    apply: (code) =>
+      code.replace(
+        /constructor\(\)\s*\{\s*this\.logger\s*=\s*new\s*Logger\("UpdateLogger"\)/g,
+        "constructor() { return \n",
+      ),
+  });
+
+  astPatcher.register({
+    name: "min-width-360",
+    find: () => /minWidth:\s*768/g.test(indexJsContents),
+    apply: (code) => code.replace(/minWidth:\s*768/g, "minWidth: 360"),
+  });
+
+  astPatcher.register({
+    name: "min-height-550",
+    find: () => /minHeight:\s*650/g.test(indexJsContents),
+    apply: (code) => code.replace(/minHeight:\s*650/g, "minHeight: 550"),
+  });
+
+  astPatcher.register({
+    name: "title-bar-style",
+    find: () => /titleBarStyle:\s*["']hidden["']/g.test(indexJsContents),
+    apply: (code) =>
+      code.replace(
+        /titleBarStyle:\s*["']hidden["']/g,
+        "titleBarStyle: !enableSystemToolbar ? 'hidden' : 'default'",
+      ),
+  });
+
+  astPatcher.register({
+    name: "show-window",
+    find: () =>
+      /const\s+window\s*=\s*new\s*electron\.BrowserWindow\(\{\s*show:\s*false/g.test(indexJsContents),
+    apply: (code) =>
+      code.replace(
+        /const\s+window\s*=\s*new\s*electron\.BrowserWindow\(\{\s*show:\s*false/g,
+        "const window = new electron.BrowserWindow({\n show: true",
+      ),
+  });
+
+  astPatcher.register({
+    name: "devtools-enabled",
+    find: () => /const\s+webPreferences\s*=\s*\{/g.test(indexJsContents),
+    apply: (code) =>
+      code.replace(
+        /const\s+webPreferences\s*=\s*\{/g,
+        "const webPreferences = {\n devTools: true, \n",
+      ),
+  });
+
+  astPatcher.register({
+    name: "web-security",
+    find: () => /webSecurity:\s*true/g.test(indexJsContents),
+    apply: (code) =>
+      code.replace(/webSecurity:\s*true/g, "webSecurity: true, allowRunningInsecureContent: false"),
+  });
+
+  if (process.env.AUTO_OPEN_DEVTOOLS?.toLowerCase() === "true") {
+    astPatcher.register({
+      name: "auto-open-devtools",
+      find: () => /return\s+window/g.test(indexJsContents),
+      apply: (code) =>
+        code.replace(/return\s+window/g, "window.webContents.openDevTools();\n" + "return window"),
+    });
   }
 
-  if (/minWidth:\s768/g.test(indexJsContents)) {
-    indexJsContents = indexJsContents.replace(/minWidth:\s768/g, "minWidth: 360");
-  } else {
-    logProgress(`❌ "minWidth: 768" is not found in index.js`);
-    return;
-  }
+  astPatcher.register({
+    name: "devtools-shortcut",
+    find: () => /window\.once\(["']ready-to-show["'],\s*\(\)\s*=>\s*\{/g.test(indexJsContents),
+    apply: (code) =>
+      code.replace(
+        /window\.once\(["']ready-to-show["'],\s*\(\)\s*=>\s*\{/g,
+        'window.once("ready-to-show", () => {' +
+          `
+           electron.globalShortcut.register("CommandOrControl+Shift+I", () => {
+             const focusedWindow = electron.BrowserWindow.getFocusedWindow();
+             if (focusedWindow) {
+               focusedWindow.webContents.toggleDevTools();
+             }
+           });
+         `,
+      ),
+  });
 
-  if (/minHeight:\s650/g.test(indexJsContents)) {
-    indexJsContents = indexJsContents.replace(/minHeight:\s650/g, "minHeight: 550");
-  } else {
-    logProgress(`❌ "minHeight: 650" is not found in index.js`);
-    return;
-  }
+  astPatcher.register({
+    name: "block-analytics",
+    find: () => /return\s+window/g.test(indexJsContents),
+    apply: (code) => {
+      const blockedAnalyticsUrls = [
+        "https://yandex.ru/clck/*",
+        "https://mc.yandex.ru/*",
+        "https://api.music.yandex.net/dynamic-pages/trigger/*",
+        "https://api.music.yandex.net/lyric-views",
+        "https://log.strm.yandex.ru/*",
+        "https://api.acquisition-gwe.plus.yandex.net/*",
+        "https://api.events.plus.yandex.net/*",
+        "https://events.plus.yandex.net/*",
+        "https://plus.yandex.net/*",
+        "https://yandex.ru/ads/*",
+        "https://strm.yandex.ru/ping",
+        "https://yandex.ru/an/*",
+      ];
 
-  if (/titleBarStyle:\s"hidden"/g.test(indexJsContents)) {
-    indexJsContents = indexJsContents.replace(
-      /titleBarStyle:\s"hidden"/g,
-      "titleBarStyle: !enableSystemToolbar ? 'hidden' : 'default'",
-    );
-  } else {
-    logProgress(`❌ "titleBarStyle: 'hidden'" is not found in index.js`);
-    return;
-  }
-
-  if (/const window = new electron.BrowserWindow\({\s+show: false/g.test(indexJsContents)) {
-    indexJsContents = indexJsContents.replace(
-      /const window = new electron.BrowserWindow\({\s+show: false/g,
-      "const window = new electron.BrowserWindow({\n show: true",
-    );
-  } else {
-    logProgress(`❌ "const window = new electron.BrowserWindow({ show: false" is not found in index.js`);
-    return;
-  }
-
-  if (/const webPreferences = {/g.test(indexJsContents)) {
-    indexJsContents = indexJsContents.replace(
-      /const webPreferences = {/g,
-      "const webPreferences = {\n devTools: true, \n",
-    );
-  } else {
-    logProgress(`❌ "const webPreferences = {" is not found in index.js`);
-    return;
-  }
-
-  if (/webSecurity: true/g.test(indexJsContents)) {
-    indexJsContents = indexJsContents.replace(/webSecurity: true/g, "webSecurity: false \n");
-  } else {
-    logProgress(`❌ "webSecurity: true" is not found in index.js`);
-    return;
-  }
-
-  // Автоматически открывать devtools при запуске приложения
-  if (/return window/g.test(indexJsContents)) {
-    if (process.env.AUTO_OPEN_DEVTOOLS?.toLowerCase() === "true")
-      indexJsContents = indexJsContents.replace(
-        /return window/g,
-        "window.webContents.openDevTools();\n" + "return window",
-      );
-  } else {
-    logProgress(`❌ "return window" is not found in index.js`);
-    return;
-  }
-
-  if (/window.once\("ready-to-show", \(\) => {/g.test(indexJsContents)) {
-    indexJsContents = indexJsContents.replace(
-      /window.once\("ready-to-show", \(\) => {/g,
-      'window.once("ready-to-show", () => {' +
+      return code.replace(
+        /return\s+window/g,
         `
-           // Register Ctrl+Shift+I to open DevTools
-            electron.globalShortcut.register("CommandOrControl+Shift+I", () => {
-              const focusedWindow = electron.BrowserWindow.getFocusedWindow();
-              if (focusedWindow) {
-                focusedWindow.webContents.toggleDevTools();
-              }
-            });
-          `,
-    );
-  } else {
-    logProgress(`❌ "window.once("ready-to-show", () => {" is not found in index.js`);
-    return;
-  }
-
-  // Отключить аналитику
-  if (/return window/g.test(indexJsContents)) {
-    const blockedAnalyticsUrls = [
-      "https://yandex.ru/clck/*",
-      "https://mc.yandex.ru/*",
-      "https://api.music.yandex.net/dynamic-pages/trigger/*",
-      "https://api.music.yandex.net/lyric-views",
-      "https://log.strm.yandex.ru/*",
-      "https://api.acquisition-gwe.plus.yandex.net/*",
-      "https://api.events.plus.yandex.net/*",
-      "https://events.plus.yandex.net/*",
-      "https://plus.yandex.net/*",
-      "https://yandex.ru/ads/*",
-      "https://strm.yandex.ru/ping",
-      "https://yandex.ru/an/*",
-    ];
-
-    indexJsContents = indexJsContents.replace(
-      /return window/g,
-      `
       window.webContents.session.webRequest.onBeforeRequest(
-        {
-          urls: ${JSON.stringify(blockedAnalyticsUrls)},
-        },
+        { urls: ${JSON.stringify(blockedAnalyticsUrls)} },
+        (details, callback) => { callback({ cancel: true }); },
+      );
+      window.webContents.session.webRequest.onBeforeSendHeaders(
+        { urls: ["https://api.music.yandex.net/*"] },
         (details, callback) => {
-          callback({ cancel: true });
+          ["x-yandex-music-device", "x-request-id"].forEach((h) => { details.requestHeaders[h] = undefined; });
+          callback({ requestHeaders: details.requestHeaders });
         },
       );
+      window.webContents.session.webRequest.onHeadersReceived(
+        { urls: ["*://*/*"] },
+        (details, callback) => {
+          const csp = details.responseHeaders["content-security-policy"];
+          if (csp) {
+            details.responseHeaders["content-security-policy"] = [
+              csp[0].replace(/img-src[^;]*/, "img-src 'self' data: https: http: https://avatars.mds.yandex.net https://*"),
+            ];
+          }
+          callback({ responseHeaders: details.responseHeaders });
+        },
+      );` + "return window",
+      );
+    },
+  });
 
-      window.webContents.session.webRequest.onBeforeSendHeaders(
-      {
-        urls: ["https://api.music.yandex.net/*"],
-      },
-      (details, callback) => {
-        const bannedHeaders = ["x-yandex-music-device", "x-request-id"];
-        bannedHeaders.forEach((header) => {
-          details.requestHeaders[header] = undefined;
-        });
-        callback({ requestHeaders: details.requestHeaders });
-      },
-    );` + "return window",
-    );
-  } else {
-    logProgress(`❌ "return window" is not found in index.js`);
+  const applyResult = astPatcher.applyAll(indexJsContents);
+
+  for (const name of applyResult.applied) {
+    logProgress(`✔️  Patch applied: ${name}`);
+  }
+  for (const name of applyResult.missing) {
+    logProgress(`❌ Patch missing in build: ${name}`);
     return;
   }
+
+  indexJsContents = applyResult.result;
 
   fs.writeFileSync(staticFiles.indexJs, indexJsContents);
 

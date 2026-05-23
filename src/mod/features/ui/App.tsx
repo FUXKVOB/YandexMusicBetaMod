@@ -1,41 +1,49 @@
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { useQuery } from "@tanstack/react-query";
 
-import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@ui/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@ui/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ui/components/ui/tooltip";
 import { ScrollArea } from "@ui/components/ui/scroll-area";
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Toaster } from "@ui/components/ui/sonner";
-
-import { Playground } from "@ui/components/playground";
-import { IPChecker } from "@ui/components/ip-checker";
-import { FontChanger } from "@ui/components/font-changer";
-import { Devtools } from "@ui/components/devtools";
-import { Downloader } from "@ui/components/downloader";
-import { AutoBestQuality } from "@ui/components/auto-best-quality";
-import { DiscordRPC } from "@ui/components/discord-rpc";
-import { Settings } from "@ui/components/settings";
-import { AutoLiker } from "@ui/components/auto-liker";
-import { ExperimentsToggle } from "@ui/components/experiments-toggle";
-import { ScaleChanger } from "@ui/components/scale-changer";
-import { CustomThemes } from "@ui/components/custom-themes";
-import { NewYearSnowfall, NewYearSnowfallAnimation } from "@ui/components/snowfall-animation";
 
 import { Button } from "./components/ui/button";
 
 import logo from "@ui/assets/logo.webp?inline";
 import discordBg from "@ui/assets/discord-bg.png?inline";
-import boostyBg from "@ui/assets/boosty-bg.png?inline";
 
 import { FaDiscord, FaGithub } from "react-icons/fa";
-import { SiBoosty } from "react-icons/si";
 import { RxUpdate } from "react-icons/rx";
+
+const Downloader = lazy(() => import("@ui/components/downloader").then((m) => ({ default: m.Downloader })));
+const FontChanger = lazy(() => import("@ui/components/font-changer").then((m) => ({ default: m.FontChanger })));
+const Devtools = lazy(() => import("@ui/components/devtools").then((m) => ({ default: m.Devtools })));
+const DiscordRPC = lazy(() => import("@ui/components/discord-rpc").then((m) => ({ default: m.DiscordRPC })));
+const Settings = lazy(() => import("@ui/components/settings").then((m) => ({ default: m.Settings })));
+const ExperimentsToggle = lazy(
+  () => import("@ui/components/experiments-toggle").then((m) => ({ default: m.ExperimentsToggle })),
+);
+const ScaleChanger = lazy(() => import("@ui/components/scale-changer").then((m) => ({ default: m.ScaleChanger })));
+const CustomThemes = lazy(() => import("@ui/components/custom-themes").then((m) => ({ default: m.CustomThemes })));
+const NewYearSnowfall = lazy(
+  () => import("@ui/components/snowfall-animation").then((m) => ({ default: m.NewYearSnowfall })),
+);
+const NewYearSnowfallAnimation = lazy(
+  () => import("@ui/components/snowfall-animation").then((m) => ({ default: m.NewYearSnowfallAnimation })),
+);
+const AutoBestQuality = lazy(
+  () => import("@ui/components/auto-best-quality").then((m) => ({ default: m.AutoBestQuality })),
+);
+const AutoLiker = lazy(() => import("@ui/components/auto-liker").then((m) => ({ default: m.AutoLiker })));
 
 const IS_DEV = false;
 const DISCORD_INVITE_URL = "https://discord.gg/4nK7nk2sY8";
-const BOOSTY_URL = "https://boosty.to/yandexmusic";
 const GITHUB_REPO_URL = "https://github.com/Stephanzion/YandexMusicBetaMod/";
+
+function LazyFallback() {
+  return <div className="h-12 animate-pulse rounded-md bg-muted" />;
+}
 
 export default function App() {
   const [mountNode, setMountNode] = useState<HTMLDivElement | null>(null);
@@ -124,7 +132,9 @@ export default function App() {
         <Toaster position="bottom-right" />
       </SheetTrigger>
 
-      <NewYearSnowfallAnimation />
+      <Suspense fallback={null}>
+        <NewYearSnowfallAnimation />
+      </Suspense>
     </>
   );
 
@@ -191,9 +201,6 @@ export default function App() {
             className="flex h-full flex-col p-1 pt-0 overflow-hidden overflow-x-auto overflow-y-auto rounded-md"
             viewportClassName="gap-2"
           >
-            {/* Проверка IP адреса на геолокацию, отключил за ненадобностью */}
-            {/* {devtoolsEnabled && <IPChecker />} */}
-
             {appMetaQuery.isSuccess &&
               appMetaQuery.data &&
               appMetaQuery.data.modStable !== import.meta.env.VITE_MOD_VERSION && (
@@ -211,22 +218,43 @@ export default function App() {
                 </div>
               )}
 
-            <Downloader />
-            <NewYearSnowfall />
-            <DiscordRPC />
-            <AutoLiker />
-            <CustomThemes />
-            <FontChanger />
-            <ScaleChanger />
-            <AutoBestQuality />
+            <Suspense fallback={<LazyFallback />}>
+              <Downloader />
+            </Suspense>
+            <Suspense fallback={<LazyFallback />}>
+              <NewYearSnowfall />
+            </Suspense>
+            <Suspense fallback={<LazyFallback />}>
+              <DiscordRPC />
+            </Suspense>
+            <Suspense fallback={<LazyFallback />}>
+              <AutoLiker />
+            </Suspense>
+            <Suspense fallback={<LazyFallback />}>
+              <CustomThemes />
+            </Suspense>
+            <Suspense fallback={<LazyFallback />}>
+              <FontChanger />
+            </Suspense>
+            <Suspense fallback={<LazyFallback />}>
+              <ScaleChanger />
+            </Suspense>
+            <Suspense fallback={<LazyFallback />}>
+              <AutoBestQuality />
+            </Suspense>
 
-            <Settings />
-            <Devtools />
+            <Suspense fallback={<LazyFallback />}>
+              <Settings />
+            </Suspense>
+            <Suspense fallback={<LazyFallback />}>
+              <Devtools />
+            </Suspense>
 
             {devtoolsEnabled && (
               <>
-                <ExperimentsToggle />
-                {/* <Playground /> */}
+                <Suspense fallback={<LazyFallback />}>
+                  <ExperimentsToggle />
+                </Suspense>
               </>
             )}
 
@@ -247,23 +275,6 @@ export default function App() {
                   <span className="text-slate-200 text-sm mt-[-3px]">Присоединяйтесь к нам в Discord</span>
                 </div>
               </div>
-
-              {/* <div
-                className="py-3 px-6 w-full flex flex-row justify-center items-center gap-4 border-amber-500 border-1 rounded-xl hover:scale-105 transition-all cursor-pointer opacity-90 dark:opacity-100"
-                style={{
-                  backgroundImage: `url(${boostyBg})`,
-                  backgroundSize: "contain",
-                  backgroundRepeat: "repeat-x",
-                  zoom: ".9",
-                }}
-                onClick={() => window.open(BOOSTY_URL, "_blank", "noreferrer")}
-              >
-                <SiBoosty className="text-white h-[3rem]! w-[3rem]!" fill="currentColor" />
-                <div className="flex flex-col gap-1 justify-center items-start">
-                  <span className="text-white text-lg font-semibold">Поддержать на boosty</span>
-                  <span className="text-white/80 text-sm mt-[-3px]">Ранний доступ к обновлениям и роль в Discord</span>
-                </div>
-              </div> */}
             </div>
           </ScrollArea>
 

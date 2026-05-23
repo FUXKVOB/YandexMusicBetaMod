@@ -279,6 +279,9 @@ electron.ipcMain.on("yandexMusicMod.openDownloadDirectory", (_ev) => {
   await electron.openPath(saveFolder)
 });
 
+// window API - ручное обновление Discord RPC
+electron.ipcMain.on("yandexMusicMod.updateDiscordRPC", () => {});
+
 // window API - универсальный axios запрос
 electron.ipcMain.handle("yandexMusicMod.axios", async (_ev, config) => {
   const client = axios.create({

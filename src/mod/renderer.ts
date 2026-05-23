@@ -1,34 +1,76 @@
 import { initFetchInterceptor } from "~/mod/features/utils";
+import { registry } from "~/mod/core/registry";
 
-// Инициализация мода utils для перехвата запросов к yandex api
 initFetchInterceptor();
 
-// Инициализация мода на разблокировку плюса
-import "./features/plus-unlocker";
+registry.register({
+  name: "plus-unlocker",
+  init: async () => {
+    await import("./features/plus-unlocker");
+  },
+});
 
-// Инициализация интерфейса мода
-import "./features/ui/index";
+registry.register({
+  name: "ui",
+  init: async () => {
+    await import("./features/ui/index");
+  },
+});
 
-// Инициализация мода на изменение шрифта
-import "./features/font-changer";
+registry.register({
+  name: "font-changer",
+  init: async () => {
+    await import("./features/font-changer");
+  },
+});
 
-// Инициализация мода на изменение размера интерфейса
-import "./features/scale-changer";
+registry.register({
+  name: "scale-changer",
+  init: async () => {
+    await import("./features/scale-changer");
+  },
+});
 
-// Инициализация мода на кастомные темы
-import "./features/custom-themes";
+registry.register({
+  name: "custom-themes",
+  init: async () => {
+    await import("./features/custom-themes");
+  },
+});
 
-// Инициализация мода на режим разработчика
-import "./features/devtools";
+registry.register({
+  name: "devtools",
+  init: async () => {
+    await import("./features/devtools");
+  },
+});
 
-// Инициализация мода авто-выбора качества
-import "./features/auto-best-quality";
+registry.register({
+  name: "auto-best-quality",
+  init: async () => {
+    await import("./features/auto-best-quality");
+  },
+});
 
-// Инициализация renderer части мода discordRPC
-import "./features/discord-RPC/discordRPC";
+registry.register({
+  name: "discord-rpc",
+  init: async () => {
+    await import("./features/discord-RPC/discordRPC");
+  },
+});
 
-// Инициализация settings
-import "./features/settings";
+registry.register({
+  name: "settings",
+  init: async () => {
+    await import("./features/settings");
+  },
+});
 
-// Инициализация мода для переопределения экспериментов
-import "./features/experiments-toggle";
+registry.register({
+  name: "experiments-toggle",
+  init: async () => {
+    await import("./features/experiments-toggle");
+  },
+});
+
+registry.initAll();

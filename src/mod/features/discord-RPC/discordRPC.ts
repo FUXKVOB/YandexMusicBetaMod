@@ -3,8 +3,10 @@ import * as Sentry from "@sentry/react";
 
 let isRpcEnabled = true;
 let showModButton = true;
+let lastTrackId: string | null = null;
 
-// Функция для получения состояния плеера из окна приложения. Её вызывает main процесс - src\mod\main.js
+const POLL_INTERVAL = 2000;
+
 window.__getPlayerState = () => {
   const trackMetaRequest = getTrackMeta();
   const playbackRequest = getProgress();
@@ -23,8 +25,6 @@ window.__getPlayerState = () => {
   }
 
   if (playbackRequest.isErr()) {
-    Sentry.captureException("Error getting player progress:", { extra: { playbackRequest: playbackRequest.error } });
-    console.error("Error getting player progress:", playbackRequest.error);
     return {
       enabled: isRpcEnabled,
       showModButton: showModButton,
@@ -33,8 +33,6 @@ window.__getPlayerState = () => {
   }
 
   if (isPlayingRequest.isErr()) {
-    Sentry.captureException("Error getting isPlaying:", { extra: { isPlayingRequest: isPlayingRequest.error } });
-    console.error("Error getting isPlaying:", isPlayingRequest.error);
     return {
       enabled: isRpcEnabled,
       showModButton: showModButton,
@@ -62,3 +60,20 @@ window.yandexMusicMod.onStorageChanged((key: string, value: any) => {
   isRpcEnabled = (await window.yandexMusicMod.getStorageValue("discordRPC/enabled")) === false ? false : true;
   showModButton = (await window.yandexMusicMod.getStorageValue("discordRPC/showModButton")) === false ? false : true;
 })();
+
+setInterval(async () => {
+  if (!isRpcEnabled) return;
+
+  const trackMeta = getTrackMeta();
+  if (trackMeta.isErr()) return;
+
+  const trackId = trackMeta.value.id;
+  if (trackId !== lastTrackId) {
+    lastTrackId = trackId;
+    try {
+      await window.yandexMusicMod.setStorageValue("discordRPC/lastTrackId", trackId);
+    } catch {
+      // ignore
+    }
+  }
+}, POLL_INTERVAL);

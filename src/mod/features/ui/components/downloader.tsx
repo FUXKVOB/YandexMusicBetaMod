@@ -148,19 +148,16 @@ export function Downloader() {
     const tracks = [];
     const chunkSize = 50;
 
-    for (var i = 0; i < trackIds.length; i += chunkSize) {
+    for (let i = 0; i < trackIds.length; i += chunkSize) {
       setDownloadStatusText(`Получение информации о треках ${((i / trackIds.length) * 100).toFixed(2)}%`);
       setDownloadProgress((i / trackIds.length) * 100);
       if (downloadCancelledRef.current) return;
 
       const chunk = trackIds.slice(i, i + chunkSize);
 
-      var newTracks = await getTracksInfo(chunk, true);
-
-      console.log("[Downloader] get tracks info", chunk, newTracks);
+      const newTracks = await getTracksInfo(chunk, true);
 
       if (newTracks.isErr()) {
-        console.error("[Downloader] get tracks info", newTracks.error);
         return toast.error(
           `Произошла ошибка при получении информации о треках (${i * chunkSize} / ${trackIds.length})`,
           {
@@ -174,59 +171,59 @@ export function Downloader() {
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
 
-    console.log("[Downloader] tracks info", tracks);
+    const CONCURRENCY_LIMIT = 3;
+    let completedCount = 0;
+    const total = tracks.length;
 
-    const downloadedTracks = [];
+    const downloadOne = async (track: any): Promise<void> => {
+      const trackTitle = `${track.artists.map((a: any) => a.name).join(", ")} - ${track.title}`;
 
-    for (var i = 0; i < tracks.length; i++) {
-      setDownloadStatusText(`Скачивание треков ${i + 1} / ${tracks.length}`);
-      setDownloadProgress((i / tracks.length) * 100);
-      if (downloadCancelledRef.current) return;
-
-      const trackTitle = `${tracks[i]!.artists.map((a: any) => a.name).join(", ")} - ${tracks[i]!.title}`;
-
-      if (tracks[i]!.available === false) {
-        console.log("[Downloader] Track is not available", tracks[i]);
+      if (track.available === false) {
         toast.warning("Трек недоступен", {
           description: trackTitle,
         });
-        continue;
+        return;
       }
 
-      const downloadInfo = await getTrackUrl(tracks[i]!.id, quality);
-
+      const downloadInfo = await getTrackUrl(track.id, quality);
       if (downloadInfo.isErr()) {
-        console.log("[Downloader] DownloadUrl not available", tracks[i]);
         toast.error("Не удалось получить ссылку для загрузки трека", {
           description: trackTitle,
         });
-        continue;
+        return;
       }
 
       Sentry.metrics.count("tracks_downloaded", 1);
 
-      console.log("[Downloader] got track download url", tracks[i], downloadInfo.value);
-
       const downloadResult = await window.yandexMusicMod.downloadTrack(
         downloadInfo.value,
-        tracks[i],
+        track,
         downloadFolderPath || "",
       );
 
       if (downloadResult.error) {
-        console.error("[Downloader] error while downloading track", downloadResult.error);
         toast.error("Не удалось скачать трек", {
           description: downloadResult.error,
         });
-        continue;
+        return;
       }
+    };
 
-      console.log("[Downloader] downloadResult", downloadResult);
+    const worker = async (): Promise<void> => {
+      while (true) {
+        const track = tracks.shift();
+        if (!track || downloadCancelledRef.current) return;
 
-      downloadedTracks.push(tracks[i]!);
+        await downloadOne(track);
 
-      await new Promise((resolve) => setTimeout(resolve, 300));
-    }
+        completedCount++;
+        setDownloadStatusText(`Скачивание треков ${completedCount} / ${total}`);
+        setDownloadProgress((completedCount / total) * 100);
+      }
+    };
+
+    const workers = Array.from({ length: CONCURRENCY_LIMIT }, () => worker());
+    await Promise.all(workers);
   }
 
   async function downloadButtonClick() {

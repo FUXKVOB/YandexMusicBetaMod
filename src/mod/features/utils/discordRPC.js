@@ -35,17 +35,15 @@ function initRpc() {
   });
 }
 
+let lastTrackId = null;
+
 async function updateActivity() {
-  setTimeout(updateActivity, 500);
-
   if (lastActivityChanged + ACTIVITY_COOLDOWN > Date.now()) return;
-
   if (!client.user) return;
 
   try {
     const playerState = await GetAppPlayerState();
 
-    // Discord RPC не включен
     if (!playerState.enabled) {
       client.user.clearActivity();
       return;
@@ -53,10 +51,14 @@ async function updateActivity() {
 
     const playerStateData = playerState.data;
 
-    if (!playerStateData.isPlaying) {
+    if (!playerStateData || !playerStateData.isPlaying) {
       client.user.clearActivity();
       return;
     }
+
+    const trackId = playerStateData.trackMeta?.id;
+    if (trackId && trackId === lastTrackId) return;
+    lastTrackId = trackId;
 
     const startTimestamp = Math.round(Date.now() - playerStateData.playback.position * 1000);
     const endTimestamp = Math.round(
@@ -79,7 +81,7 @@ async function updateActivity() {
       endTimestamp: endTimestamp,
       buttons: [
         {
-          label: "🎵 Открыть",
+          label: "Открыть",
           url: `https://music.yandex.ru/track/${playerStateData.trackMeta.id}`,
         },
       ],
@@ -88,13 +90,12 @@ async function updateActivity() {
 
     if (playerState.showModButton) {
       rpcRequest.buttons.push({
-        label: "💻 Yandex Music Mod",
+        label: "Yandex Music Mod",
         url: `https://github.com/Stephanzion/YandexMusicBetaMod`,
       });
     }
 
     client.user.setActivity(rpcRequest);
-
     lastActivityChanged = Date.now();
   } catch (ex) {
     console.log("[DISCORD RPC]", ex);
@@ -102,7 +103,17 @@ async function updateActivity() {
 }
 
 initRpc();
-updateActivity();
+
+const { ipcMain } = require("electron");
+ipcMain.on("yandexMusicMod.storageValueUpdated", (_ev, key) => {
+  if (key === "discordRPC/lastTrackId") {
+    updateActivity();
+  }
+});
+
+ipcMain.on("yandexMusicMod.updateDiscordRPC", () => {
+  updateActivity();
+});
 
 async function GetAppPlayerState() {
   const [win] = BrowserWindow.getAllWindows();
