@@ -4,7 +4,15 @@ import { Result, ResultAsync, ok, err, okAsync, errAsync } from "neverthrow";
 import { z } from "zod";
 
 const SECRET_KEY = "kzqU4XhfCaY6B6JTHODeq5";
-const OAuthToken = localStorage.oauth ? "OAuth " + JSON.parse(localStorage.oauth).value : null;
+
+function getOAuthToken(): string | null {
+  if (!localStorage.oauth) return null;
+  try {
+    return "OAuth " + JSON.parse(localStorage.oauth).value;
+  } catch {
+    return null;
+  }
+}
 
 export enum QualityEnum {
   LOSSLESS = "lossless",
@@ -12,19 +20,29 @@ export enum QualityEnum {
   LQ = "lq",
 }
 
-const headers = {
-  "X-Yandex-Music-Client": "YandexMusicDesktopAppWindows/" + window.VERSION,
-  "X-Yandex-Music-Frontend": "new",
-  "X-Yandex-Music-Without-Invocation-Info": "1",
-  Authorization: OAuthToken,
-};
+function getHeaders() {
+  return {
+    "X-Yandex-Music-Client": "YandexMusicDesktopAppWindows/" + window.VERSION,
+    "X-Yandex-Music-Frontend": "new",
+    "X-Yandex-Music-Without-Invocation-Info": "1",
+    Authorization: getOAuthToken(),
+  };
+}
 
-// Create axios client with common headers
+// Create axios client with common base config
 const yandexMusicClient: AxiosInstance = axios.create({
   baseURL: "https://api.music.yandex.net",
-  headers: headers,
   // Prevent axios from throwing on HTTP error status codes
   validateStatus: () => true,
+});
+
+// Set auth headers per-request via interceptor (lazy token resolution)
+yandexMusicClient.interceptors.request.use((config) => {
+  config.headers.set("X-Yandex-Music-Client", "YandexMusicDesktopAppWindows/" + window.VERSION);
+  config.headers.set("X-Yandex-Music-Frontend", "new");
+  config.headers.set("X-Yandex-Music-Without-Invocation-Info", "1");
+  config.headers.set("Authorization", getOAuthToken());
+  return config;
 });
 
 // HMAC sign function
@@ -170,10 +188,7 @@ export async function getTracksInfo(trackIds: string[], skipAuth = false): Promi
     const response = await yandexMusicClient.get(
       `/tracks?trackIds=${queryTracks}&removeDuplicates=false&withProgress=true`,
       {
-        headers: {
-          ...headers,
-          Authorization: skipAuth ? undefined : OAuthToken,
-        },
+        headers: skipAuth ? { Authorization: undefined } : undefined,
       },
     );
 
@@ -198,10 +213,7 @@ export async function likeTrack(userId: number, trackId: string): Promise<Result
       `/users/${userId}/likes/tracks/add?trackId=${trackId}`,
       {},
       {
-        headers: {
-          ...headers,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
       },
     );
 

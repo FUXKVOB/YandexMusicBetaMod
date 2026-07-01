@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import axios from "axios";
 import * as yaml from "js-yaml";
 import { z } from "zod";
@@ -82,7 +83,14 @@ export async function downloadBuild(
       responseType: "arraybuffer",
     });
 
-    await Bun.write(filePath, response.data);
+    const data = response.data as ArrayBuffer;
+    const hash = crypto.createHash("sha512").update(Buffer.from(data)).digest("base64");
+
+    if (build.hash && hash !== build.hash) {
+      return err(new Error(`SHA-512 mismatch: expected ${build.hash}, got ${hash}`));
+    }
+
+    await Bun.write(filePath, data);
 
     return ok();
   } catch (error) {

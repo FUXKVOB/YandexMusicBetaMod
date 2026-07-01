@@ -128,7 +128,7 @@ electron.ipcMain.handle(
       .trim()
       .substring(0, 250);
     const trackFilePath = path.join(saveFolder, `${trackFileName}.${fileExtension}`);
-    const trackTempFilePath = path.join(saveFolder, `${Math.random().toString(36).substring(2, 7)}.${fileExtension}`);
+
     const trackCoverPath = path.join(saveFolder, `${trackFileName}.jpg`);
 
     try {
@@ -155,26 +155,8 @@ electron.ipcMain.handle(
         console.log("Download and Decryption Completed");
       });
 
-      // 2. Copy/reencode audio using direct ffmpeg command
-      await new Promise((resolve, reject) => {
-        const ffmpegArgs = ["-i", JSON.stringify(trackFilePath), "-y", JSON.stringify(trackTempFilePath)];
-        const command = `${JSON.stringify(pathToFfmpeg)} ${ffmpegArgs.join(" ")}`;
-
-        console.log("Executing FFmpeg command:", command);
-
-        exec(command, (error, stdout, stderr) => {
-          if (error) {
-            console.error("FFmpeg stderr:", stderr);
-            console.error("FFmpeg error:", error);
-            reject(new Error(`FFmpeg process failed. Command: ${command}. Error: ${error.message}`));
-          } else {
-            resolve();
-          }
-        });
-      });
-
-      // Build ffmpeg arguments for adding metadata and cover
-      const ffmpegArgs = ["-i", JSON.stringify(trackTempFilePath)];
+      // Build single ffmpeg command for re-encoding, cover art, and metadata
+      const ffmpegArgs = ["-i", JSON.stringify(trackFilePath)];
 
       // === Download cover art ===
       if (trackMeta.coverUri) {
@@ -220,32 +202,25 @@ electron.ipcMain.handle(
       }
       ffmpegArgs.push("-metadata", JSON.stringify("encoded_by=yandexMusicMod"));
 
-      ffmpegArgs.push(JSON.stringify(trackFilePath));
+      ffmpegArgs.push("-y", JSON.stringify(trackFilePath));
 
       console.log("ffmpegArgs", ffmpegArgs);
 
-      // Execute ffmpeg command to add metadata and cover
+      // Execute single ffmpeg command
       await new Promise((resolve, reject) => {
         const command = `${pathToFfmpeg} ${ffmpegArgs.join(" ")}`;
 
-        console.log("Executing FFmpeg metadata command:", command);
+        console.log("Executing FFmpeg command:", command);
 
         exec(command, (error, stdout, stderr) => {
           if (error) {
-            console.error("FFmpeg metadata stderr:", stderr);
-            console.error("FFmpeg metadata error:", error);
-            reject(new Error(`FFmpeg metadata process failed. Command: ${command}. Error: ${error.message}`));
+            console.error("FFmpeg stderr:", stderr);
+            console.error("FFmpeg error:", error);
+            reject(new Error(`FFmpeg process failed. Command: ${command}. Error: ${error.message}`));
           } else {
-            // Clean up temporary files
-            if (fs.existsSync(trackTempFilePath)) {
-              fs.unlinkSync(trackTempFilePath);
-            }
-
             resolve();
           }
         });
-
-        console.log("Download completed.");
       });
     } catch (err) {
       console.error("Download or decryption failed:", err);
@@ -257,7 +232,7 @@ electron.ipcMain.handle(
 );
 
 // window API - открытие папки для загрузки треков
-electron.ipcMain.on("yandexMusicMod.openDownloadDirectory", (_ev) => {
+electron.ipcMain.handle("yandexMusicMod.openDownloadDirectory", async () => {
   let saveFolder;
   if (process.platform === "win32") {
     saveFolder = process.env.USERPROFILE + "\\YandexMod Download";
@@ -265,22 +240,17 @@ electron.ipcMain.on("yandexMusicMod.openDownloadDirectory", (_ev) => {
     saveFolder = (process.env.HOME || process.env.USERPROFILE) + "/YandexMod Download";
   }
 
-  if (customDownloadPath) {
-    saveFolder = customDownloadPath;
-  } else {
-    try {
-      const settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"));
-      saveFolder = settings.downloadFolderPath || saveFolder;
-    } catch (e) {
-      console.log("failed to parse settings", e)
-    }
+  try {
+    const settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"));
+    saveFolder = settings.downloadFolderPath || saveFolder;
+  } catch (e) {
+    console.log("failed to parse settings", e)
   }
 
   await electron.openPath(saveFolder)
 });
 
-// window API - ручное обновление Discord RPC
-electron.ipcMain.on("yandexMusicMod.updateDiscordRPC", () => {});
+
 
 // window API - универсальный axios запрос
 electron.ipcMain.handle("yandexMusicMod.axios", async (_ev, config) => {

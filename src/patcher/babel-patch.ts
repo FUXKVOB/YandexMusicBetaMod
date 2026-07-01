@@ -44,35 +44,7 @@ export class AstPatcher {
     return { result, applied, missing };
   }
 
-  applyAllWithContext(indexJsContents: string): string {
-    const patches = this.patches;
-    let result = indexJsContents;
-
-    const ast = parser.parse(indexJsContents, {
-      sourceType: "script",
-      plugins: [],
-    });
-
-    const applied: string[] = [];
-    const missing: string[] = [];
-
-    for (const patch of patches) {
-      try {
-        if (patch.find(ast)) {
-          result = patch.apply(result);
-          applied.push(patch.name);
-        } else {
-          missing.push(patch.name);
-        }
-      } catch (error) {
-        console.warn(`[AstPatcher] Patch "${patch.name}" failed, falling back:`, error);
-        result = patch.apply(result);
-        applied.push(patch.name);
-      }
-    }
-
-    return result;
-  }
+    
 }
 
 export function findPropertyAssignment(

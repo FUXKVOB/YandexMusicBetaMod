@@ -38,32 +38,33 @@ class MusixmatchApi {
     });
   }
 
+  private buildParams(trackName: string, artistName: string, duration?: number) {
+    const baseParams: Record<string, string> = {
+      ...baseApiParams,
+      usertoken: this.usertoken,
+      q_track: trackName,
+      q_artist: artistName,
+      tags: "scrobbling,notifications",
+      f_subtitle_length_max_deviation: "1",
+      subtitle_format: "dfxp",
+      page_size: "1",
+      optional_calls: "track.richsync,crowd.track.actions",
+      scrobbling_package: "ru.yandex.music",
+      language_iso_code: "1",
+      part: "lyrics_crowd,user,lyrics_vote,lyrics_poll,track_lyrics_translation_status,lyrics_verified_by,labels,track_structure",
+    };
+
+    if (duration !== undefined) {
+      baseParams.f_subtitle_length = duration.toString();
+      baseParams.q_duration = duration.toString();
+    }
+
+    return baseParams;
+  }
+
   async getAllMetaRequest(trackName: string, artistName: string, duration?: number): Promise<Result<any, string>> {
     try {
-      const baseParams = {
-        ...baseApiParams,
-        usertoken: this.usertoken,
-        q_track: trackName,
-        q_artist: artistName,
-        tags: "scrobbling,notifications",
-        f_subtitle_length_max_deviation: "1",
-        subtitle_format: "dfxp",
-        page_size: "1",
-        optional_calls: "track.richsync,crowd.track.actions",
-        scrobbling_package: "ru.yandex.music",
-        language_iso_code: "1",
-        part: "lyrics_crowd,user,lyrics_vote,lyrics_poll,track_lyrics_translation_status,lyrics_verified_by,labels,track_structure",
-      };
-
-      // Add duration-related parameters if duration is provided
-      if (duration !== undefined) {
-        Object.assign(baseParams, {
-          f_subtitle_length: duration.toString(),
-          q_duration: duration.toString(),
-        });
-      }
-
-      const params = new URLSearchParams(baseParams);
+      const params = new URLSearchParams(this.buildParams(trackName, artistName, duration));
       const url = `macro.subtitles.get?${params.toString()}`;
       const signedUrlResult = await signRequestUrl(url);
 
@@ -88,40 +89,11 @@ class MusixmatchApi {
   }
 
   async getAllMeta(trackName: string, artistName: string, duration?: number): Promise<Result<AllMetaResponse, string>> {
+    const requestResult = await this.getAllMetaRequest(trackName, artistName, duration);
+    if (requestResult.isErr()) return err(requestResult.error);
+
     try {
-      const baseParams = {
-        ...baseApiParams,
-        usertoken: this.usertoken,
-        q_track: trackName,
-        q_artist: artistName,
-        tags: "scrobbling,notifications",
-        f_subtitle_length_max_deviation: "1",
-        subtitle_format: "dfxp",
-        page_size: "1",
-        optional_calls: "track.richsync,crowd.track.actions",
-        scrobbling_package: "ru.yandex.music",
-        language_iso_code: "1",
-        part: "lyrics_crowd,user,lyrics_vote,lyrics_poll,track_lyrics_translation_status,lyrics_verified_by,labels,track_structure",
-      };
-
-      // Add duration-related parameters if duration is provided
-      if (duration !== undefined) {
-        Object.assign(baseParams, {
-          f_subtitle_length: duration.toString(),
-          q_duration: duration.toString(),
-        });
-      }
-
-      const params = new URLSearchParams(baseParams);
-      const url = `macro.subtitles.get?${params.toString()}`;
-      const signedUrlResult = await signRequestUrl(url);
-
-      if (signedUrlResult.isErr()) {
-        return err(signedUrlResult.error.message);
-      }
-
-      // Create a custom client instance with specific headers for this endpoint
-      const response = await axios.get(`${MUSIXMATCH_API_URL}${signedUrlResult.value}`, {
+      const response = await axios.get(requestResult.value.url, {
         headers: {
           "accept-encoding": "gzip",
           Cookie: this.cookie,

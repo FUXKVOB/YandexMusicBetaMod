@@ -4,7 +4,7 @@ import fs from "fs";
 
 await $`bun run ui:build`;
 
-const modPath = ".versions/5.86.0/mod/app/yandexMusicMod/";
+const modPath = path.join(".versions", process.argv[2] || "5.86.0", "mod", "app", "yandexMusicMod");
 const sourcesPath = "src/mod/dist/";
 
 // Ensure the modPath directory exists

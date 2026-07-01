@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: "./src/mod/dist",
-      sourcemap: true,
+      sourcemap: mode === "development",
       minify: true,
       cssMinify: true,
       cssCodeSplit: false,

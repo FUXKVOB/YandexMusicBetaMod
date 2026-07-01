@@ -27,11 +27,12 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false,
 
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "~/*": ["./src/*"],
       "@ui/*": ["./src/mod/features/ui/*"]
     }
   },
-  "include": ["./**/*"]
+  "include": ["src/**/*"]
 }
